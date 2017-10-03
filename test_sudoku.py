@@ -41,13 +41,14 @@ def changeGiven(matrix, givens):
     e = np.count_nonzero(matrix)
     f = np.shape(c)
     i = 0
+    testMatrix = np.copy(matrix)
     while i < (e - givens):
         j = np.random.randint(0, f[0])
-        matrix[c[j], d[j]] = 0
-        c, d = np.nonzero(matrix)
+        testMatrix[c[j], d[j]] = 0
+        c, d = np.nonzero(testMatrix)
         f = np.shape(c)
         i += 1
-    return matrix
+    return testMatrix
 
 
 def changeMatrix(matrix1, matrix2):
@@ -57,7 +58,7 @@ def changeMatrix(matrix1, matrix2):
     # newQuizMatrix = newQuizMatrix.reshape((-1,9,9))
     while i < 81:
         j = 0
-        while j < 100:
+        while j < 100:  # change here for 1000
             a = np.random.randint(0, 100000)
             if (np.count_nonzero(matrix1[a]) < i):
                 newQuizMatrix[n] = changeGiven(matrix2[a], i)
@@ -69,6 +70,37 @@ def changeMatrix(matrix1, matrix2):
         i += 1
 
     return newQuizMatrix
+
+
+def changesymGiven(matrix, givens):
+    c, d = np.nonzero(matrix)  # c= row, d= column
+    e = np.count_nonzero(matrix)
+    f = np.shape(c)
+    i = 0
+    while i < (e - givens):
+        j = np.random.randint(0, f[0])
+        matrix[c[j], d[j]] = 0
+        c, d = np.nonzero(matrix)
+        f = np.shape(c)
+        i += 1
+    return matrix
+
+
+def changesymMatrix(matrix1, matrix2):
+    i = 0
+    n = 81
+    symQuizMatrix = np.zeros((100000, 81), np.int32).reshape((-1, 9, 9))
+    while i < 100:
+        a = np.random.randint(0, 100000)
+        testMatrix = np.copy(matrix2[a])
+        j = 81
+        while j > -1:
+            symQuizMatrix[n] = changesymGiven(testMatrix, j)
+            j += -1
+            n += -1
+        n = (i*100)+81
+        i += 1
+    return symQuizMatrix
 
 
 def sudokuProblem(matrix):
@@ -245,6 +277,9 @@ b = countGivens(quizzes)
 newMatrix = np.zeros((100000, 81), np.int32)
 newMatrix = changeMatrix(quizzes, solutions)
 
+symMatrix = np.zeros((100000, 81), np.int32)
+symMatrix = changesymMatrix(quizzes, solutions)
+
 prob = sudokuProblem(newMatrix[1767])
 
 
@@ -265,9 +300,33 @@ def displayMatrix(matrix):
     return solMatrix
 
 
-def getProblem(number):
-    prob = sudokuProblem(newMatrix[number])
-    return prob
+def getProblem(number, symmetry=0,type2=0):
+    text = ""
+    if symmetry == 0 and type2 == 0:
+        npmatrix = newMatrix[number]
+        prob = sudokuProblem(npmatrix)
+        text += "None" + "\n"
+        return prob, text
+    else:
+        npmatrix = np.copy(symMatrix[number])
+    if int(symmetry / 8) == 1:
+        c = checkevenandequal(npmatrix)
+        text += "Element switch;"
+        npmatrix = switchelement(c, npmatrix)
+    symmetry = symmetry % 8
+    if int(symmetry / 4) == 1:
+        text += "Diagonal switch;"
+        npmatrix = switchdiagonally(npmatrix)
+    symmetry = symmetry % 4
+    if int(symmetry / 2) == 1:
+        text += "Column switch;"
+        npmatrix = switchcolumnstrips(npmatrix)
+    symmetry = symmetry % 2
+    if symmetry == 1:
+        text += "row switch;"
+        npmatrix = switchrowstrips(npmatrix)
+    prob = sudokuProblem(npmatrix)
+    return prob, text
 
 
 def find_between(s, first, last):
@@ -282,6 +341,7 @@ def find_between(s, first, last):
 first = 'second'
 last = '[-1'
 
+# change here for 1000
 onegivenVariables = np.zeros(100)
 onegivenOriginal = np.zeros(100)
 onegivenLeanrned = np.zeros(100)
@@ -292,6 +352,17 @@ onegivenSeconds = np.zeros(100)
 onegivenConflicts = np.zeros(100)
 onegivenLimit = np.zeros(100)
 onegivenMB = np.zeros(100)
+
+symgivenVariables = np.zeros((100, 81))
+symgivenOriginal = np.zeros((100, 81))
+symgivenLeanrned = np.zeros((100, 81))
+symgivenAgility = np.zeros((100, 81))
+symgivenLevel = np.zeros((100, 81))
+symgivenUsed = np.zeros((100, 81))
+symgivenSeconds = np.zeros((100, 81))
+symgivenConflicts = np.zeros((100, 81))
+symgivenLimit = np.zeros((100, 81))
+symgivenMB = np.zeros((100, 81))
 
 avggivenVariables = np.zeros(81)
 avggivenOriginal = np.zeros(81)
@@ -377,14 +448,32 @@ def splitData(matrixnumber, number, data):
     onegivenMB[matrixnumber] = keyValue[9][number]
 
 
+def splitsysData(j, given, number, data):
+    keyValue = splitKeyValue(data)
+    symgivenSeconds[j, given] = keyValue[0][number]
+    symgivenLevel[j, given] = keyValue[1][number]
+    symgivenVariables[j, given] = keyValue[2][number]
+    symgivenUsed[j, given] = keyValue[3][number]
+    symgivenOriginal[j, given] = keyValue[4][number]
+    symgivenConflicts[j, given] = keyValue[5][number]
+    symgivenLeanrned[j, given] = keyValue[6][number]
+    symgivenLimit[j, given] = keyValue[7][number]
+    symgivenAgility[j, given] = keyValue[8][number]
+    symgivenMB[j, given] = keyValue[9][number]
+
+
 # out is the verbose split data 0 = names of variables,1=s,2=r,3=1
-def solve(given, outtype, filenumber):
+def solve(given, outtype, filenumber, symmetry, type2):
     j = 0
-    while j < 100:
+    while j < 100:  # change here for 1000
         f = open("output_Data" + str(filenumber) + ".csv", 'a')
-        probnumber = (given * 100) + j
-        prob = getProblem(probnumber)
-        f.write("problem: " + str(prob) + "\n")
+        if symmetry == 0 and type2 == 0:
+            probnumber = (given * 100) + j  # change here for 1000
+        else:
+            probnumber = (j * 100) + given
+        prob, text = getProblem(probnumber, symmetry,type2)
+        f.write("problem:, " + str(prob) + "\n")
+        f.write("Symmetry applied:, " + text + "\n")
         cnf = get_rules(9) + prob
         with open('data.txt', 'w') as outfile:
             json.dump(cnf, outfile)
@@ -401,13 +490,13 @@ def solve(given, outtype, filenumber):
         f.write("restarts: " + str(str(pycoutput).count('C R')))
         f.write('\n')
         f.close()
-        '''furtherSplit = str(outversplit[0] + outversplit[1]) + "\n" + str(outversplit[3]) + "\n" + str(
-            outversplit[4]) + "\n" + str(outversplit[8]) + "\n" + str(outversplit[6])
-        f.write('\n' + str(probnumber) + '\n')
-        f.write(furtherSplit + '\n')'''
-        splitData(j, outtype, outversplit)
+        if symmetry == 0 and type2 == 0:
+            splitData(j, outtype, outversplit)
+        else:
+            splitsysData(j, given, outtype, outversplit)
         j += 1
-    plotonegiven(j, given)
+    if symmetry == 0 and type2 == 0:
+        plotonegiven(j, given)
     return
 
 
@@ -441,6 +530,87 @@ def plotonegiven(x, filenumber):
     plotgraph1(x, onegivenUsed, "onegivenUsed" + fnum)
 
 
+def plotsymgiven(x, y, filenumber):
+    fnum = str(filenumber)
+    plotgraph1(x, symgivenLevel[y], "symgivenLevel" + fnum)
+    plotgraph1(x, symgivenVariables[y], "symgivenVariables" + fnum)
+    plotgraph1(x, symgivenAgility[y], "symgivenAgility" + fnum)
+    plotgraph1(x, symgivenConflicts[y], "symgivenConflicts" + fnum)
+    plotgraph1(x, symgivenLeanrned[y], "symgivenLeanrned" + fnum)
+    plotgraph1(x, symgivenLimit[y], "symgivenLimit" + fnum)
+    plotgraph1(x, symgivenMB[y], "symgivenMB" + fnum)
+    plotgraph1(x, symgivenOriginal[y], "symgivenOriginal" + fnum)
+    plotgraph1(x, symgivenSeconds[y], "symgivenSeconds" + fnum)
+    plotgraph1(x, symgivenUsed[y], "symgivenUsed" + fnum)
+
+
+def plotsymaverage(x, filenumber):
+    fnum = str(filenumber)
+    plotgraph2(x, avggivenLevel, maxgivenLevel, mingivenLevel, "allgivenLevel" + fnum)
+    plotgraph2(x, avggivenVariables, maxgivenVariables, mingivenVariables, "allgivenVariables" + fnum)
+    plotgraph2(x, avggivenAgility, maxgivenAgility, mingivenAgility, "allgivenAgility" + fnum)
+    plotgraph2(x, avggivenConflicts, maxgivenConflicts, mingivenConflicts, "allgivenConflicts" + fnum)
+    plotgraph2(x, avggivenLeanrned, maxgivenLeanrned, mingivenLeanrned, "allgivenLeanrned" + fnum)
+    plotgraph2(x, avggivenLimit, maxgivenLimit, mingivenLimit, "allgivenLimit" + fnum)
+    plotgraph2(x, avggivenMB, maxgivenMB, mingivenMB, "allgivenMB" + fnum)
+    plotgraph2(x, avggivenOriginal, maxgivenOriginal, mingivenOriginal, "allgivenOriginal" + fnum)
+    plotgraph2(x, avggivenSeconds, maxgivenSeconds, mingivenSeconds, "allgivenSeconds" + fnum)
+    plotgraph2(x, avggivenUsed, maxgivenUsed, mingivenUsed, "allgivenUsed" + fnum)
+
+
+def plotsymaverageonly(x, filenumber):
+    fnum = str(filenumber)
+    plotgraph1(x, avggivenLevel, "avggivenLevel" + fnum)
+    plotgraph1(x, avggivenVariables, "avggivenVariables" + fnum)
+    plotgraph1(x, avggivenAgility, "avggivenAgility" + fnum)
+    plotgraph1(x, avggivenConflicts, "avggivenConflicts" + fnum)
+    plotgraph1(x, avggivenLeanrned, "avggivenLeanrned" + fnum)
+    plotgraph1(x, avggivenLimit, "avggivenLimit" + fnum)
+    plotgraph1(x, avggivenMB, "avggivenMB" + fnum)
+    plotgraph1(x, avggivenOriginal, "avggivenOriginal" + fnum)
+    plotgraph1(x, avggivenSeconds, "avggivenSeconds" + fnum)
+    plotgraph1(x, avggivenUsed, "avggivenUsed" + fnum)
+
+
+def populatesymavg(given):
+    avggivenVariables[given] = np.average(symgivenVariables[:,given])
+    avggivenOriginal[given] = np.average(symgivenOriginal[:,given])
+    avggivenLeanrned[given] = np.average(symgivenLeanrned[:,given])
+    avggivenAgility[given] = np.average(symgivenAgility[:,given])
+    avggivenLevel[given] = np.average(symgivenLevel[:,given])
+    avggivenUsed[given] = np.average(symgivenUsed[:,given])
+    avggivenSeconds[given] = np.average(symgivenSeconds[:,given])
+    avggivenConflicts[given] = np.average(symgivenConflicts[:,given])
+    avggivenLimit[given] = np.average(symgivenLimit[:,given])
+    avggivenMB[given] = np.average(symgivenMB[:,given])
+
+
+def populatesymmax(given):
+    maxgivenVariables[given] = np.max(symgivenVariables[:,given])
+    maxgivenOriginal[given] = np.max(symgivenOriginal[:,given])
+    maxgivenLeanrned[given] = np.max(symgivenLeanrned[:,given])
+    maxgivenAgility[given] = np.max(symgivenAgility[:,given])
+    maxgivenLevel[given] = np.max(symgivenLevel[:,given])
+    maxgivenUsed[given] = np.max(symgivenUsed[:,given])
+    maxgivenSeconds[given] = np.max(symgivenSeconds[:,given])
+    maxgivenConflicts[given] = np.max(symgivenConflicts[:,given])
+    maxgivenLimit[given] = np.max(symgivenLimit[:,given])
+    maxgivenMB[given] = np.max(symgivenMB[:,given])
+
+
+def populatesymmin(given):
+    mingivenVariables[given] = np.min(symgivenVariables[:,given])
+    mingivenOriginal[given] = np.min(symgivenOriginal[:,given])
+    mingivenLeanrned[given] = np.min(symgivenLeanrned[:,given])
+    mingivenAgility[given] = np.min(symgivenAgility[:,given])
+    mingivenLevel[given] = np.min(symgivenLevel[:,given])
+    mingivenUsed[given] = np.min(symgivenUsed[:,given])
+    mingivenSeconds[given] = np.min(symgivenSeconds[:,given])
+    mingivenConflicts[given] = np.min(symgivenConflicts[:,given])
+    mingivenLimit[given] = np.min(symgivenLimit[:,given])
+    mingivenMB[given] = np.min(symgivenMB[:,given])
+
+
 def plotaverage(x, filenumber):
     fnum = str(filenumber)
     plotgraph2(x, avggivenLevel, maxgivenLevel, mingivenLevel, "allgivenLevel" + fnum)
@@ -456,6 +626,7 @@ def plotaverage(x, filenumber):
 
 
 def plotaverageonly(x, filenumber):
+    fnum = str(filenumber)
     plotgraph1(x, avggivenLevel, "avggivenLevel" + fnum)
     plotgraph1(x, avggivenVariables, "avggivenVariables" + fnum)
     plotgraph1(x, avggivenAgility, "avggivenAgility" + fnum)
@@ -507,12 +678,105 @@ def populatemin(given):
     mingivenMB[given] = np.min(onegivenMB)
 
 
-def solveall():
-    for i in range(81):
-        solve(i, 3, i)
-        populateavg(i)
-        populatemax(i)
-        populatemin(i)
+def switchrowstrips(npmatrix):
+    b = np.copy(npmatrix[0, :])
+    c = np.copy(npmatrix[6, :])
+    npmatrix[0, :] = c
+    npmatrix[6, :] = b
+    b = np.copy(npmatrix[1, :])
+    c = np.copy(npmatrix[7, :])
+    npmatrix[1, :] = c
+    npmatrix[7, :] = b
+    b = np.copy(npmatrix[2, :])
+    c = np.copy(npmatrix[8, :])
+    npmatrix[2, :] = c
+    npmatrix[8, :] = b
+    return npmatrix
+
+
+def switchcolumnstrips(npmatrix):
+    b = np.copy(npmatrix[:, 0])
+    c = np.copy(npmatrix[:, 6])
+    npmatrix[:, 0] = c
+    npmatrix[:, 6] = b
+    b = np.copy(npmatrix[:, 1])
+    c = np.copy(npmatrix[:, 7])
+    npmatrix[:, 1] = c
+    npmatrix[:, 7] = b
+    b = np.copy(npmatrix[:, 2])
+    c = np.copy(npmatrix[:, 8])
+    npmatrix[:, 2] = c
+    npmatrix[:, 8] = b
+    return npmatrix
+
+
+def switchdiagonally(npmatrix):
+    return npmatrix.transpose()
+
+
+def checkevenandequal(npmatrix):
+    a, b = np.unique(npmatrix, return_counts=True)
+    c = []
+    for i in range(1, len(b) + 1):
+        for j in range(i + 1, len(b) + 1):
+            if j > len(b) - 1:
+                continue
+            if b[i] == b[j]:
+                if a[i] in [y for x in c for y in x]:
+                    continue
+                temp = [a[i], a[j]]
+                c.append(temp)
+    return c
+
+
+def switchelement(elementlist, npmatrix):
+    for i in range(0, npmatrix.shape[0]):
+        for j in range(0, npmatrix.shape[1]):
+            for k in range(len(elementlist)):
+                if npmatrix[i][j] == elementlist[k][0]:
+                    npmatrix[i][j] = elementlist[k][1]
+                elif npmatrix[i][j] == elementlist[k][1]:
+                    npmatrix[i][j] = elementlist[k][0]
+    return npmatrix
+
+
+'''symmetry encoding:
+0 or empty  = randomize
+1           = row strip switch
+2           = column strip switch
+3           = row and column switch
+4           = diagonal switch
+5           = row and diagonal
+6           = column and diagonal
+7           = row, column and diagonal
+8           = element switch
+9           = element and row switch
+10          = element and column switch
+11          = element , row and column switch
+12          = element and diagonal switch
+13          = element , diagonal and row switch
+14          = element , diagonal and column switch
+15          = element , diagonal , row and column switch  
+'''
+'''set type to non zero if you want to analyze the symmetric set without any tranformation'''
+
+
+def solveall(symmetry=0, type2=0):
+    i = 0
+    for i in range(0, 81):
+        solve(i, 3, i, symmetry, type2)
+        if symmetry == 0 & type2 == 0:
+            populateavg(i)
+            populatemax(i)
+            populatemin(i)
+        else:
+            populatesymavg(i)
+            populatesymmax(i)
+            populatesymmin(i)
+    if symmetry != 0 or type2 !=0:
+        for i in range(100):
+            plotsymgiven(81, i, i)
+
     plotaverageonly(81, i)
     plotaverage(81, i)
 
@@ -546,3 +810,38 @@ outversplit = outverbose.split('\\nc')
 
 
 furtherSplit =  str(outversplit[0]+outversplit[1])+"\n"+str(outversplit[3])+"\n"+str(outversplit[4]) +"\n"+str(outversplit[8]) +"\n" + str(outversplit[6])'''
+
+'''import json
+first2= '-2, -3'
+last2= '\\r'
+probnumber = 4567
+a = np.copy(newMatrix[probnumber])
+prob,text = getProblem(probnumber)
+f = open("output.txt",'w')
+f.write("problem:, " + str(prob) + "\n")
+cnf = get_rules(9) + prob
+with open('data.txt', 'w') as outfile:
+    json.dump(cnf, outfile)
+p = subprocess.Popen(["python", "Pycosat_runner.py"], shell=True, stdout=subprocess.PIPE)
+pycoutput = p.communicate()[0]
+outverbose = find_between(str(pycoutput), first, last)
+outversplit = outverbose.split('\\nc')
+f.write(str(probnumber) + "\n")
+keyval = splitKeyValue(outversplit)
+for col in range(0, 4):
+        for row in range(len(keyval)):
+            f.write(keyval[row][col] + ",")
+        f.write('\n')
+outverbose2 = find_between(str(pycoutput), first2, last2)
+c = outverbose2.split(',')
+c.remove('')
+if ' -999]' in c:
+    c.remove(' -999]')
+    c.append(' -999')
+elif  ' 999]' in c:
+    c.remove(' 999]')
+    c.append(' 999')
+b = [int(x) for x in c if int(x) > 110]
+f.write(str(b))
+f.close()
+displayMatrix(b)'''
